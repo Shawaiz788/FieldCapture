@@ -4,6 +4,10 @@
 
 ---
 
+
+https://github.com/user-attachments/assets/69f1dc37-33e0-4915-9e3e-c6f04a51f9fa
+
+
 ## 📌 Executive Summary
 
 **FieldCapture** is an offline-first mobile prototype engineered for field workers, safety technicians, utility personnel, and civil inspectors operating in hazardous or low-connectivity environments (such as power substations, construction yards, and offshore facilities).
