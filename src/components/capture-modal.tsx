@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Modal,
   StyleSheet,
@@ -48,24 +48,29 @@ export function CaptureModal({ visible, onClose }: Props) {
   const [mediaType, setMediaType] = useState<MediaType>('photo');
   const [isSaving, setIsSaving] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [titleY, setTitleY] = useState(0);
+  const [notesY, setNotesY] = useState(0);
 
-  useEffect(() => {
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+  const scrollViewRef = useRef<ScrollView>(null);
+  const notesInputRef = useRef<TextInput>(null);
 
-    const showSubscription = Keyboard.addListener(showEvent, (e) => {
-      setKeyboardHeight(e.endCoordinates.height);
-    });
-    const hideSubscription = Keyboard.addListener(hideEvent, () => {
-      setKeyboardHeight(0);
-    });
+  const scrollToTitle = () => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        y: Math.max(0, titleY - 80),
+        animated: true,
+      });
+    }, 100);
+  };
 
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, []);
+  const scrollToNotes = () => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        y: Math.max(0, notesY - 170),
+        animated: true,
+      });
+    }, 100);
+  };
 
   const {
     showDeniedModal,
@@ -123,6 +128,7 @@ export function CaptureModal({ visible, onClose }: Props) {
   };
 
   const handleSave = async () => {
+    Keyboard.dismiss();
     if (!title.trim()) {
       setValidationError('Please enter an inspection title');
       return;
@@ -163,38 +169,45 @@ export function CaptureModal({ visible, onClose }: Props) {
   };
 
   const handleDismiss = () => {
+    Keyboard.dismiss();
     handleResetForm();
     onClose();
   };
 
   return (
     <>
-      <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={handleDismiss}>
-        <View style={[styles.container, { paddingTop: Math.max(insets.top, 16) }]}>
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>New Field Capture</Text>
-            <TouchableOpacity style={styles.closeHeaderButton} activeOpacity={0.7} onPress={handleDismiss}>
-              <Ionicons name="close" size={24} color="#0F172A" />
-            </TouchableOpacity>
+      <Modal
+        visible={visible}
+        animationType="slide"
+        transparent={true}
+        statusBarTranslucent={true}
+        onRequestClose={handleDismiss}>
+        <KeyboardAvoidingView
+          style={styles.keyboardContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={0}>
+          <View style={[styles.headerWrapper, { paddingTop: Math.max(insets.top, 16) }]}>
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>New Field Capture</Text>
+              <TouchableOpacity style={styles.closeHeaderButton} activeOpacity={0.7} onPress={handleDismiss}>
+                <Ionicons name="close" size={24} color="#0F172A" />
+              </TouchableOpacity>
+            </View>
           </View>
 
-          <KeyboardAvoidingView
-            style={styles.keyboardContainer}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <ScrollView
-              style={styles.scrollContent}
-              contentContainerStyle={[
-                styles.scrollInner,
-                {
-                  paddingBottom:
-                    keyboardHeight > 0
-                      ? keyboardHeight + 36
-                      : Math.max(insets.bottom + 24, 32),
-                },
-              ]}
-              keyboardDismissMode="on-drag"
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}>
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollInner,
+              {
+                flexGrow: 1,
+                paddingBottom: Math.max(insets.bottom + 36, 50),
+              },
+            ]}
+            keyboardDismissMode="on-drag"
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}>
               <View style={styles.section}>
                 <Text style={styles.sectionLabel}>Media Capture</Text>
 
@@ -303,13 +316,22 @@ export function CaptureModal({ visible, onClose }: Props) {
                 </View>
               </View>
 
-              <View style={styles.section}>
+              <View
+                style={styles.section}
+                onLayout={(e) => setTitleY(e.nativeEvent.layout.y)}>
                 <Text style={styles.sectionLabel}>Title *</Text>
                 <TextInput
                   style={styles.textInput}
                   placeholder="e.g. Pump Station 3 Valve Leakage"
                   placeholderTextColor="#94A3B8"
                   value={title}
+                  returnKeyType="next"
+                  onFocus={scrollToTitle}
+                  onSubmitEditing={() => {
+                    notesInputRef.current?.focus();
+                    scrollToNotes();
+                  }}
+                  blurOnSubmit={false}
                   onChangeText={(text) => {
                     setTitle(text);
                     if (validationError) setValidationError(null);
@@ -317,9 +339,21 @@ export function CaptureModal({ visible, onClose }: Props) {
                 />
               </View>
 
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Field Observation Notes</Text>
+              <View
+                style={styles.section}
+                onLayout={(e) => setNotesY(e.nativeEvent.layout.y)}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionLabel}>Field Observation Notes</Text>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={Keyboard.dismiss}
+                    style={styles.dismissKeyboardButton}>
+                    <Ionicons name="chevron-down" size={14} color="#64748B" />
+                    <Text style={styles.dismissKeyboardText}>Dismiss</Text>
+                  </TouchableOpacity>
+                </View>
                 <TextInput
+                  ref={notesInputRef}
                   style={[styles.textInput, styles.notesInput]}
                   placeholder="Describe observed conditions, equipment tag numbers, or safety flags..."
                   placeholderTextColor="#94A3B8"
@@ -328,6 +362,7 @@ export function CaptureModal({ visible, onClose }: Props) {
                   multiline
                   numberOfLines={4}
                   textAlignVertical="top"
+                  onFocus={scrollToNotes}
                 />
               </View>
 
@@ -347,7 +382,6 @@ export function CaptureModal({ visible, onClose }: Props) {
               </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>
-        </View>
       </Modal>
 
       <PermissionModal
@@ -364,9 +398,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
+  headerWrapper: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
   header: {
     flexDirection: 'row',
@@ -374,9 +409,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 14,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   headerTitle: {
     fontSize: 18,
@@ -396,6 +428,26 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 20,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  dismissKeyboardButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+  },
+  dismissKeyboardText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
   },
   sectionLabel: {
     fontSize: 13,
